@@ -1,5 +1,5 @@
 use std::collections::{HashMap, VecDeque};
-use crate::{LandChunk, StaticsChunk};
+use crate::chunks::{LandChunk, StaticsChunk};
 use crate::map::Map;
 
 pub struct ChunkCache {

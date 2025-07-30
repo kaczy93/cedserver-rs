@@ -9,7 +9,6 @@ fn main() {
     let mut map = Map::build(map_config);
 
     let (land_chunk, _static_chunk) = map.get_chunk(0, 0);
-    let tile = land_chunk[(0, 0)];
+    let tile = land_chunk.get_tile(0,0);
     println!("{tile:#?}");
-
 }

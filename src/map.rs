@@ -4,20 +4,21 @@ use std::cmp;
 use std::fs;
 use std::io::{Read, Seek, SeekFrom};
 use std::path;
-use crate::{LandChunk, MulIndex, StaticsChunk};
+use crate::MulIndex;
 use crate::chunk_cache::ChunkCache;
 use crate::binary_reader::BinaryReader;
+use crate::chunks::{LandChunk, StaticsChunk};
 
 pub struct MapConfig<'a>{
-    pub index: u8,
+    pub map_index: u8,
     pub width: u16,
     pub height: u16,
     pub directory: &'a str
 }
 
 impl MapConfig<'_>{
-    pub fn new(index: u8, width: u16, height: u16, directory: &str) -> MapConfig{
-        MapConfig{index, width, height, directory}
+    pub fn new(map_index: u8, width: u16, height: u16, directory: &str) -> MapConfig{
+        MapConfig{ map_index, width, height, directory}
     }
 }
 
@@ -43,13 +44,13 @@ impl Map<'_>{
         //TODO: UOP
         let base_path = Path::new(map_config.directory);
 
-        let map_path = base_path.join(format!("map{}.mul", map_config.index));
+        let map_path = base_path.join(format!("map{}.mul", map_config.map_index));
         let map_file = File::open(map_path).expect("Unable to open map file");
 
-        let staidx_path = base_path.join(format!("staidx{}.mul", map_config.index));
+        let staidx_path = base_path.join(format!("staidx{}.mul", map_config.map_index));
         let staidx_file = File::open(staidx_path).expect("Unable to open staidx file");
 
-        let statics_path = base_path.join(format!("statics{}.mul", map_config.index));
+        let statics_path = base_path.join(format!("statics{}.mul", map_config.map_index));
         let statics_file = File::open(statics_path).expect("Unable to open statics file");
 
         Map {map_config, map_file, staidx_file, statics_file, chunk_cache: ChunkCache::new(cache_capcity)}
@@ -104,15 +105,14 @@ impl Map<'_>{
         let mut staidx_buf: [u8; 12] = [0; 12];
         self.staidx_file.seek(SeekFrom::Start(self.staidx_offset(x,y))).expect("Unable to seek staidx file");
         self.staidx_file.read(&mut staidx_buf).expect("Error reading staidx file");
-        let staidx = MulIndex::deserialize(BinaryReader::new(&staidx_buf));
+        let statics_index = MulIndex::deserialize(BinaryReader::new(&staidx_buf));
 
 
-        let statick_chunk = if(staidx.lookup == u32::MAX) {
-            //No statics
+        let statick_chunk = if !statics_index.is_valid() {
             StaticsChunk::new(x,y)
         } else {
-            let mut statics_buf: Vec<u8> = vec![0; staidx.length as usize];
-            self.statics_file.seek(SeekFrom::Start(staidx.lookup as u64)).expect("Unable to seek staidx file");
+            let mut statics_buf: Vec<u8> = vec![0; statics_index.length as usize];
+            self.statics_file.seek(SeekFrom::Start(statics_index.lookup as u64)).expect("Unable to seek staidx file");
             self.statics_file.read(&mut statics_buf).expect("Error reading staidx file");
             StaticsChunk::deserialize(x,y, BinaryReader::new(&statics_buf))
         };
@@ -136,7 +136,7 @@ mod tests{
             let map_file = tempfile().unwrap();
             let staidx_file= tempfile().unwrap();
             let statics_file = tempfile().unwrap();
-            Map { map_config: MapConfig{ index: 0, width, height, directory: "dummy"},
+            Map { map_config: MapConfig{ map_index: 0, width, height, directory: "dummy"},
                 map_file,
                 staidx_file,
                 statics_file,
