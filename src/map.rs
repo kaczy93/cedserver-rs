@@ -107,7 +107,6 @@ impl Map<'_>{
         self.staidx_file.read(&mut staidx_buf).expect("Error reading staidx file");
         let statics_index = MulIndex::deserialize(BinaryReader::new(&staidx_buf));
 
-
         let statick_chunk = if !statics_index.is_valid() {
             StaticsChunk::new(x,y)
         } else {

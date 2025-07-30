@@ -2,11 +2,11 @@ use std::ops::Index;
 use crate::binary_reader::BinaryReader;
 
 pub mod map;
+pub mod server;
 mod chunk_cache;
 mod binary_reader;
 mod tiles;
 mod chunks;
-
 
 pub struct MulIndex {
     pub lookup: u32,
