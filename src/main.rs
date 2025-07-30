@@ -8,5 +8,8 @@ fn main() {
         r"C:\Nel\Ultima Online Classic_7_0_95_0_modified");
     let mut map = Map::build(map_config);
 
-    let chunk = map.get_chunk(0,0);
+    let (land_chunk, _static_chunk) = map.get_chunk(0, 0);
+    let tile = land_chunk[(0, 0)];
+    println!("{tile:#?}");
+
 }
