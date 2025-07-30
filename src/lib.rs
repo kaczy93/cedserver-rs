@@ -1,4 +1,4 @@
-mod map;
+pub mod map;
 mod chunk_cache;
 
 #[derive(Debug, Copy, Clone)]

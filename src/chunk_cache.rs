@@ -20,13 +20,13 @@ impl ChunkCache {
     ///
     /// Returned value will be something if we exceed capacity
     ///
-    pub fn add(&mut self, land_chunk: LandChunk, statics_chunk: StaticsChunk) -> Option<(LandChunk, StaticsChunk)> {
-        let id = ChunkCache::block_id(land_chunk.x, land_chunk.y);
+    pub fn add(&mut self, tuple: (LandChunk, StaticsChunk)) -> Option<(LandChunk, StaticsChunk)> {
+        let id = ChunkCache::block_id(tuple.0.x, tuple.0.y);
         if self.chunks.contains_key(&id) {
             return None
         };
 
-        self.chunks.insert(id, (land_chunk, statics_chunk));
+        self.chunks.insert(id, tuple);
         self.queue.push_back(id);
         if self.queue.len() > self.capacity as usize {
             let id = self.queue.pop_front().unwrap();
@@ -36,8 +36,12 @@ impl ChunkCache {
         None
     }
 
-    pub fn get(&self, x: u16, y: u16) -> Option<&(LandChunk, StaticsChunk)> {
-        self.chunks.get(&ChunkCache::block_id(x, y))
+    pub fn contains(&self, x: u16, y: u16) -> bool {
+        self.chunks.contains_key(&ChunkCache::block_id(x,y))
+    }
+
+    pub fn get(&self, x: u16, y: u16) -> &(LandChunk, StaticsChunk) {
+        self.chunks.get(&ChunkCache::block_id(x, y)).expect("Used get on missing chunk!")
     }
 }
 
@@ -48,13 +52,13 @@ mod tests {
     #[test]
     fn simple_test() {
         let mut cache = ChunkCache::new(1);
-        assert!(cache.get(0,0).is_none());
+        assert_eq!(false, cache.contains(0,0));
 
         let land = LandChunk::new(0,0);
         let statics = StaticsChunk::new(0,0);
-        cache.add(land, statics);
+        cache.add((land, statics));
 
-        assert!(cache.get(0,0).is_some());
-        assert!(cache.get(1,0).is_none());
+        assert_eq!(true, cache.contains(0,0));
+        assert_eq!(false, cache.contains(1,0));
     }
 }
