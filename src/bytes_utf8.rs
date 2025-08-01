@@ -6,9 +6,9 @@ pub trait BytesUtf8{
 
 impl BytesUtf8 for &[u8] {
     fn get_str_nul(&mut self) -> &str{
-        let endIdx = self.iter().position(|&c| c == 0).expect("Missing string terminator");
-        let result = std::str::from_utf8(&self[..endIdx]).expect("Invalid UTF-8 string");
-        self.advance(endIdx+1);
+        let nul_idx = self.iter().position(|&c| c == 0).expect("Missing string terminator");
+        let result = std::str::from_utf8(&self[..nul_idx]).expect("Invalid UTF-8 string");
+        self.advance(nul_idx + 1);
         result
     }
 }

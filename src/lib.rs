@@ -7,6 +7,8 @@ mod chunk_cache;
 mod bytes_utf8;
 mod tiles;
 mod chunks;
+mod connection_handler;
+mod net_state;
 
 pub struct MulIndex {
     pub lookup: u32,
