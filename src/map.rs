@@ -6,7 +6,6 @@ use std::io::{Read, Seek, SeekFrom};
 use std::path;
 use crate::MulIndex;
 use crate::chunk_cache::ChunkCache;
-use crate::binary_reader::BinaryReader;
 use crate::chunks::{LandChunk, StaticsChunk};
 
 pub struct MapConfig<'a>{
@@ -100,12 +99,12 @@ impl Map<'_>{
         let mut land_buf: [u8; 196] = [0; 196];
         self.map_file.seek(SeekFrom::Start(self.map_offset(x, y))).expect("Unable to seek map file");
         self.map_file.read(&mut land_buf).expect("Error reading map file");
-        let land_chunk = LandChunk::deserialize(x, y, BinaryReader::new(&land_buf));
+        let land_chunk = LandChunk::deserialize(x, y, &land_buf);
 
         let mut staidx_buf: [u8; 12] = [0; 12];
         self.staidx_file.seek(SeekFrom::Start(self.staidx_offset(x,y))).expect("Unable to seek staidx file");
         self.staidx_file.read(&mut staidx_buf).expect("Error reading staidx file");
-        let statics_index = MulIndex::deserialize(BinaryReader::new(&staidx_buf));
+        let statics_index = MulIndex::deserialize(&staidx_buf);
 
         let statick_chunk = if !statics_index.is_valid() {
             StaticsChunk::new(x,y)
@@ -113,7 +112,7 @@ impl Map<'_>{
             let mut statics_buf: Vec<u8> = vec![0; statics_index.length as usize];
             self.statics_file.seek(SeekFrom::Start(statics_index.lookup as u64)).expect("Unable to seek staidx file");
             self.statics_file.read(&mut statics_buf).expect("Error reading staidx file");
-            StaticsChunk::deserialize(x,y, BinaryReader::new(&statics_buf))
+            StaticsChunk::deserialize(x,y, &statics_buf)
         };
         (land_chunk, statick_chunk)
 

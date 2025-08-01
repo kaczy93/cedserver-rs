@@ -1,4 +1,4 @@
-use crate::binary_reader::BinaryReader;
+use bytes::Buf;
 
 #[derive(Debug, Copy, Clone)]
 pub struct LandTile {
@@ -24,9 +24,9 @@ impl LandTile {
         (self.y & 0x7) as u8
     }
 
-    pub fn deserialize(x: u16, y: u16, reader: &mut BinaryReader) -> LandTile {
-        let id = reader.read_u16();
-        let z = reader.read_i8();
+    pub fn deserialize(x: u16, y: u16, data: &mut &[u8]) -> LandTile {
+        let id = data.get_u16_le();
+        let z = data.get_i8();
         LandTile {id, x, y, z}
     }
 }

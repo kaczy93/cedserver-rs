@@ -1,4 +1,4 @@
-use crate::binary_reader::BinaryReader;
+use bytes::{Buf};
 use crate::tiles::{LandTile, StaticTile};
 
 pub struct LandChunk {
@@ -12,12 +12,12 @@ impl LandChunk {
         LandChunk { x, y, tiles: [LandTile::default(); 64] }
     }
 
-    pub fn deserialize(chunk_x: u16, chunk_y: u16, mut reader: BinaryReader) -> LandChunk {
-        let _header = reader.read_u32();
+    pub fn deserialize(chunk_x: u16, chunk_y: u16, mut data: &[u8]) -> LandChunk {
+        let _header = data.get_u32_le();
         let mut result = LandChunk::new(chunk_x, chunk_y);
         for local_y  in 0..8u16 {
             for local_x in 0..8u16 {
-                result.tiles[(local_y * 8 + local_x) as usize] = LandTile::deserialize(chunk_x * 8 + local_x, chunk_y * 8 + local_y, &mut reader)
+                result.tiles[(local_y * 8 + local_x) as usize] = LandTile::deserialize(chunk_x * 8 + local_x, chunk_y * 8 + local_y, &mut data)
             }
         }
         result
@@ -43,20 +43,21 @@ impl StaticsChunk {
         }
     }
 
-    pub fn deserialize(chunk_x: u16, chunk_y: u16, mut reader: BinaryReader) -> StaticsChunk {
+    pub fn deserialize(chunk_x: u16, chunk_y: u16, mut data: &[u8]) -> StaticsChunk {
         let mut result = StaticsChunk::new(chunk_x, chunk_y);
-        while reader.has_next() {
-            let id = reader.read_u16();
-            let local_x = reader.read_u8();
-            let local_y = reader.read_u8();
-            let z = reader.read_i8();
-            let hue = reader.read_u16();
+        while data.remaining() > 0 {
+            let id = data.get_u16_le();
+            let local_x = data.get_u8();
+            let local_y = data.get_u8();
+            let z = data.get_i8();
+            let hue = data.get_u16_le();
 
             let x = chunk_x * 8 + local_x as u16;
             let y = chunk_y * 8 + local_y as u16;
 
             result.tiles[(local_y * 8 + local_x) as usize].push(StaticTile::new(id, x, y, z, hue));
         }
+        //TODO: panic if there's still something to read
         result
     }
     

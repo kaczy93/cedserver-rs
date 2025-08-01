@@ -1,10 +1,10 @@
 use std::ops::Index;
-use crate::binary_reader::BinaryReader;
+use bytes::Buf;
 
 pub mod map;
 pub mod server;
 mod chunk_cache;
-mod binary_reader;
+mod bytes_utf8;
 mod tiles;
 mod chunks;
 
@@ -19,10 +19,10 @@ impl MulIndex {
         MulIndex { lookup, length, extra }
     }
 
-    pub fn deserialize(mut reader: BinaryReader) -> MulIndex {
-        let lookup = reader.read_u32();
-        let length = reader.read_u32();
-        let extra = reader.read_u32();
+    pub fn deserialize(mut data: &[u8]) -> MulIndex {
+        let lookup = data.get_u32_le();
+        let length = data.get_u32_le();
+        let extra = data.get_u32_le();
         MulIndex { lookup, length, extra }
     }
 
