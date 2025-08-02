@@ -1,24 +1,28 @@
 use std::collections::HashMap;
+use std::io::Write;
+use std::error::Error;
 use std::net::{SocketAddr, TcpStream};
 use input_buffer::InputBuffer;
 use bytes::Buf;
 
 #[derive(Clone)]
 pub struct PacketHandler {
-    pub length: u32,
-    pub on_receive: fn(&[u8]) -> ()
+    pub length: usize,
+    pub on_receive: fn(&NetState, &[u8]) -> ()
 }
 
 pub(crate) struct NetState{
-    stream: TcpStream,
+    pub(crate) stream: TcpStream,
     addr: SocketAddr,
-    buf: InputBuffer,
-    handlers: HashMap<u8, PacketHandler>
+    recv_buffer: InputBuffer,
+    handlers: HashMap<u8, PacketHandler>,
+    running: bool,
+    flush_pending: bool
 }
 
 impl NetState {
     pub(crate) fn new(stream: TcpStream, addr: SocketAddr) -> Self{
-        NetState {stream, addr, buf: InputBuffer::new(), handlers: HashMap::new()}
+        NetState {stream, addr, recv_buffer: InputBuffer::new(), handlers: HashMap::new(), running: true, flush_pending: false}
     }
 
     pub(crate) fn register_handlers(&mut self, handlers: &HashMap<u8, PacketHandler>) -> (){
@@ -27,8 +31,8 @@ impl NetState {
         }
     }
 
-    pub fn receive_and_process(&mut self) {
-        let bytes_read = match self.buf.read_from(&mut self.stream){
+    pub fn receive(&mut self) {
+        let bytes_read = match self.recv_buffer.read_from(&mut self.stream){
             Ok(bytes_read) => bytes_read,
             _ => {
                 self.disconnect();
@@ -37,43 +41,55 @@ impl NetState {
         };
 
         if bytes_read > 0 {
-            loop {
-                let reader = self.buf.as_cursor_mut();
-                //We have to try as this can be second loop iteration
-                let packet_id = match reader.try_get_u8() {
-                    Ok(x) => x,
-                    _ => break // Need more data
-                };
-
-                let handler = match self.handlers.get(&packet_id) {
-                    Some(handler) => handler,
-                    _ => {
-                        println!("Received unknown packet id {}", packet_id);
-                        self.disconnect();
-                        break;
-                    }
-                };
-                let mut length = handler.length as usize;
-                if length == 0 {
-                    length = match reader.try_get_u32_le() {
-                        Ok(x) => (x - 5) as usize, //Without id and length
-                        _ => break // Need more data
-                    };
-                } else {
-                    length -= 1; //Without id
-                }
-
-                if reader.remaining() < length {
-                    break; // Need more data
-                }
-                let packet_data = &reader.chunk()[..length];
-                (handler.on_receive)(packet_data);
-                self.buf.advance(length)
-            }
+            self.process_buffer()
         }
     }
 
+    pub fn process_buffer(&mut self){
+        loop {
+            let mut data = self.recv_buffer.chunk();
+            let packet_id = match data.try_get_u8() {
+                Ok(x) => x,
+                _ => break //No data
+            };
+
+            let handler = match self.handlers.get(&packet_id) {
+                Some(handler) => handler,
+                _ => {
+                    println!("Received unknown packet id {}", packet_id);
+                    self.disconnect();
+                    break
+                }
+            };
+
+            let (data_pos, packet_length): (usize, usize) = if handler.length != 0 {
+                (1, handler.length)
+            } else {
+                match data.try_get_u32_le() {
+                    Ok(x) => (5, x as usize),
+                    _ => break // Need more data
+                }
+            };
+
+            let data_length = packet_length - data_pos;
+            if data.remaining() < data_length {
+                break; // Need more data
+            }
+
+            (handler.on_receive)(self, &data[..data_length]);
+            self.recv_buffer.advance(packet_length)
+        }
+    }
+
+    pub fn send(&mut self, data: &[u8]) -> Result<(), Box<dyn Error>>{
+        let mut stream = &self.stream;
+        stream.write(data)?;
+        //TODO: Set flush pending
+        Ok(())
+    }
+
     pub fn disconnect(&mut self) {
+
         //TODO
     }
 }

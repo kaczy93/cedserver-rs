@@ -9,6 +9,23 @@ mod tiles;
 mod chunks;
 mod connection_handler;
 mod net_state;
+mod packets;
+
+pub enum AccessLevel{
+    None,
+    View,
+    Normal,
+    Developer,
+    Administrator = 255
+}
+
+pub enum LoginState{
+    Ok,
+    InvalidUser,
+    InvalidPassword,
+    AlreadyLoggedIn,
+    NoAccess
+}
 
 pub struct MulIndex {
     pub lookup: u32,
@@ -30,5 +47,16 @@ impl MulIndex {
 
     pub fn is_valid(&self) -> bool {
         self.length != u32::MAX
+    }
+}
+
+#[cfg(test)]
+mod tests{
+    use crate::LoginState;
+
+    #[test]
+    pub fn enum_cast(){
+        assert_eq!(0, LoginState::Ok as u8);
+        assert_eq!(1, LoginState::InvalidUser as u8);
     }
 }
