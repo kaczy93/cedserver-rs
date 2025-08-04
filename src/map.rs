@@ -4,9 +4,9 @@ use std::cmp;
 use std::fs;
 use std::io::{Read, Seek, SeekFrom};
 use std::path;
-use crate::MulIndex;
 use crate::chunk_cache::ChunkCache;
 use crate::chunks::{LandChunk, StaticsChunk};
+use crate::mul_index::MulIndex;
 
 pub struct MapConfig<'a>{
     pub map_index: u8,

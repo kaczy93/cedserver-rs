@@ -1,69 +1,53 @@
-use std::collections::HashMap;
-use std::io::Write;
-use std::error::Error;
-use std::net::{SocketAddr, TcpStream};
-use input_buffer::InputBuffer;
 use bytes::Buf;
+use input_buffer::InputBuffer;
+use std::cell::Cell;
+use std::error::Error;
+use std::fmt::{Display, Formatter};
+use std::io::Write;
+use std::net::{SocketAddr, TcpStream};
 
-#[derive(Clone)]
-pub struct PacketHandler {
-    pub length: usize,
-    pub on_receive: fn(&NetState, &[u8]) -> ()
-}
+type PacketHandler = fn(&NetState, &[u8]) -> Result<(), Box<dyn Error>>;
 
 pub(crate) struct NetState{
     pub(crate) stream: TcpStream,
     addr: SocketAddr,
-    recv_buffer: InputBuffer,
-    handlers: HashMap<u8, PacketHandler>,
-    running: bool,
-    flush_pending: bool
+    pub(crate) recv_buffer: InputBuffer,
+    running: Cell<bool>,
+    flush_pending: Cell<bool>
 }
 
 impl NetState {
+
     pub(crate) fn new(stream: TcpStream, addr: SocketAddr) -> Self{
-        NetState {stream, addr, recv_buffer: InputBuffer::new(), handlers: HashMap::new(), running: true, flush_pending: false}
+        NetState {stream, addr, recv_buffer:InputBuffer::new(), running: Cell::new(true), flush_pending: Cell::new(false)}
     }
 
-    pub(crate) fn register_handlers(&mut self, handlers: &HashMap<u8, PacketHandler>) -> (){
-        for handler in handlers.iter(){
-            self.handlers.insert(handler.0.clone(), handler.1.clone());
-        }
-    }
-
-    pub fn receive(&mut self) {
-        let bytes_read = match self.recv_buffer.read_from(&mut self.stream){
-            Ok(bytes_read) => bytes_read,
-            _ => {
-                self.disconnect();
-                return;
-            }
-        };
-
+    pub(crate) fn receive(&mut self) -> bool {
+        let bytes_read = self.recv_buffer.read_from(&mut self.stream).unwrap_or_else(|err|{
+            self.disconnect(err);
+            0
+        });
         if bytes_read > 0 {
-            self.process_buffer()
+            if let Err(err) = self.process_buffer() {
+                self.disconnect(err)
+            }
         }
+        //Is this a good return value here?
+        self.running.get() 
     }
 
-    pub fn process_buffer(&mut self){
+    fn process_buffer(&mut self) -> Result<(), Box<dyn Error>>{
         loop {
-            let mut data = self.recv_buffer.chunk();
+            let mut data = self.recv_buffer.chunk(); //TODO: Can we use cursor so we don't have to track pos ourself?
             let packet_id = match data.try_get_u8() {
                 Ok(x) => x,
                 _ => break //No data
             };
 
-            let handler = match self.handlers.get(&packet_id) {
-                Some(handler) => handler,
-                _ => {
-                    println!("Received unknown packet id {}", packet_id);
-                    self.disconnect();
-                    break
-                }
-            };
+            let (packet_length, packet_handler) = self.get_packet_handler(packet_id)?;
 
-            let (data_pos, packet_length): (usize, usize) = if handler.length != 0 {
-                (1, handler.length)
+            let (data_pos ,packet_length): (usize, usize) = if packet_length != 0 {
+                (1, packet_length)
             } else {
                 match data.try_get_u32_le() {
                     Ok(x) => (5, x as usize),
@@ -76,20 +60,42 @@ impl NetState {
                 break; // Need more data
             }
 
-            (handler.on_receive)(self, &data[..data_length]);
-            self.recv_buffer.advance(packet_length)
+            packet_handler(self, &data.chunk()[..data_length])?;
+            self.recv_buffer.advance(packet_length);
         }
-    }
-
-    pub fn send(&mut self, data: &[u8]) -> Result<(), Box<dyn Error>>{
-        let mut stream = &self.stream;
-        stream.write(data)?;
-        //TODO: Set flush pending
         Ok(())
     }
 
-    pub fn disconnect(&mut self) {
+    pub fn get_packet_handler(&self, packet_id: u8) -> Result<(usize, PacketHandler), NetStateError> {
+        match packet_id{
+            0x02 => Ok((0, NetState::on_connection_packet)),
+            _ => Err(NetStateError(format!("Unknown packet {packet_id}")))
+        }
+    }
 
-        //TODO
+    pub fn send(&self, data: &[u8]) -> Result<(), Box<dyn Error>>{
+        let mut stream = &self.stream;
+        let bytes_written = stream.write(data)?;
+        if bytes_written != data.len() {
+            return Err(NetStateError(String::from("Failed to write all packet data")).into())
+        }
+        self.flush_pending.set(true);
+        Ok(())
+    }
+
+    pub fn disconnect(&self, reason: impl Display) {
+        println!("{}: Disconnecting. Cause: {}", &self.addr, reason);
+        self.running.set(false);
     }
 }
+
+#[derive(Debug)]
+pub(crate) struct NetStateError(pub String);
+
+impl Display for NetStateError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "NetState Error: {}", self.0)
+    }
+}
+
+impl Error for NetStateError {}
