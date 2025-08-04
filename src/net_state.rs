@@ -9,9 +9,9 @@ use std::net::{SocketAddr, TcpStream};
 type PacketHandler = fn(&NetState, &[u8]) -> Result<(), Box<dyn Error>>;
 
 pub(crate) struct NetState{
-    pub(crate) stream: TcpStream,
+    stream: TcpStream,
     addr: SocketAddr,
-    pub(crate) recv_buffer: InputBuffer,
+    recv_buffer: InputBuffer,
     running: Cell<bool>,
     flush_pending: Cell<bool>
 }
@@ -33,7 +33,7 @@ impl NetState {
             }
         }
         //Is this a good return value here?
-        self.running.get() 
+        self.running.get()
     }
 
     fn process_buffer(&mut self) -> Result<(), Box<dyn Error>>{
@@ -66,14 +66,15 @@ impl NetState {
         Ok(())
     }
 
-    pub fn get_packet_handler(&self, packet_id: u8) -> Result<(usize, PacketHandler), NetStateError> {
+    fn get_packet_handler(&self, packet_id: u8) -> Result<(usize, PacketHandler), NetStateError> {
         match packet_id{
             0x02 => Ok((0, NetState::on_connection_packet)),
             _ => Err(NetStateError(format!("Unknown packet {packet_id}")))
         }
     }
 
-    pub fn send(&self, data: &[u8]) -> Result<(), Box<dyn Error>>{
+    pub(crate) fn send(&self, data: &[u8]) -> Result<(), Box<dyn Error>>{
+        //Do we need input buffer as send_buffer?
         let mut stream = &self.stream;
         let bytes_written = stream.write(data)?;
         if bytes_written != data.len() {
@@ -83,7 +84,14 @@ impl NetState {
         Ok(())
     }
 
-    pub fn disconnect(&self, reason: impl Display) {
+    pub(crate) fn flush(&self) -> Result<(), std::io::Error>{
+        if(self.flush_pending.get()){}
+        let mut stream = &self.stream;
+        stream.flush()?;
+        Ok(())
+    }
+
+    fn disconnect(&self, reason: impl Display) {
         println!("{}: Disconnecting. Cause: {}", &self.addr, reason);
         self.running.set(false);
     }
