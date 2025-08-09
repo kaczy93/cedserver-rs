@@ -1,3 +1,6 @@
+#![feature(test)]
+extern crate test;
+
 pub mod map;
 pub mod server;
 mod buf_utf8;
@@ -12,3 +15,4 @@ mod mul_index;
 mod net_state;
 mod point;
 mod static_tile;
+mod benchmark_sandbox;
