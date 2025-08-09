@@ -1,35 +1,36 @@
+use crate::chunk_cache::ChunkCache;
+use crate::land_chunk::LandChunk;
+use crate::mul_index::MulIndex;
+use crate::statics_chunk::StaticsChunk;
 use fs::File;
 use path::Path;
 use std::cmp;
 use std::fs;
 use std::io::{Read, Seek, SeekFrom};
 use std::path;
-use crate::chunk_cache::ChunkCache;
-use crate::chunks::{LandChunk, StaticsChunk};
-use crate::mul_index::MulIndex;
 
-pub struct MapConfig<'a>{
+pub struct MapConfig{
     pub map_index: u8,
     pub width: u16,
     pub height: u16,
-    pub directory: &'a str
+    pub directory: String
 }
 
-impl MapConfig<'_>{
+impl MapConfig{
     pub fn new(map_index: u8, width: u16, height: u16, directory: &str) -> MapConfig{
-        MapConfig{ map_index, width, height, directory}
+        MapConfig{ map_index, width, height, directory: String::from(directory) }
     }
 }
 
-pub struct Map<'a>{
-    map_config: MapConfig<'a>,
+pub struct Map{
+    map_config: MapConfig,
     map_file: File,
     staidx_file: File,
     statics_file: File,
     chunk_cache: ChunkCache
 }
 
-impl Map<'_>{
+impl Map{
     pub const MAX_DIM: u16 = u16::MAX / 8;
     pub fn build(map_config: MapConfig) -> Map {
         let mut land_chunks: Vec<Vec<LandChunk>> = Vec::with_capacity(map_config.height as usize);
@@ -41,7 +42,7 @@ impl Map<'_>{
         let cache_capcity = cmp::max(map_config.width, map_config.height) as u32;
 
         //TODO: UOP
-        let base_path = Path::new(map_config.directory);
+        let base_path = Path::new(&map_config.directory);
 
         let map_path = base_path.join(format!("map{}.mul", map_config.map_index));
         let map_file = File::open(map_path).expect("Unable to open map file");
@@ -99,7 +100,7 @@ impl Map<'_>{
         let mut land_buf: [u8; 196] = [0; 196];
         self.map_file.seek(SeekFrom::Start(self.map_offset(x, y))).expect("Unable to seek map file");
         self.map_file.read(&mut land_buf).expect("Error reading map file");
-        let land_chunk = LandChunk::deserialize(x, y, &land_buf);
+        let land_chunk = LandChunk::read(x, y, &land_buf);
 
         let mut staidx_buf: [u8; 12] = [0; 12];
         self.staidx_file.seek(SeekFrom::Start(self.staidx_offset(x,y))).expect("Unable to seek staidx file");
@@ -112,29 +113,29 @@ impl Map<'_>{
             let mut statics_buf: Vec<u8> = vec![0; statics_index.length as usize];
             self.statics_file.seek(SeekFrom::Start(statics_index.lookup as u64)).expect("Unable to seek staidx file");
             self.statics_file.read(&mut statics_buf).expect("Error reading staidx file");
-            StaticsChunk::deserialize(x,y, &statics_buf)
+            StaticsChunk::read(x, y, &statics_buf)
         };
         (land_chunk, statick_chunk)
 
     }
 
-    fn unload_chunk(&mut self, tuple: (LandChunk, StaticsChunk)) {
+    fn unload_chunk(&mut self, _tuple: (LandChunk, StaticsChunk)) {
         //TODO: Do stuff!
     }
 }
 
 #[cfg(test)]
 mod tests{
-    use tempfile::tempfile;
     use crate::chunk_cache::ChunkCache;
     use crate::map::{Map, MapConfig};
+    use tempfile::tempfile;
 
-    impl Map<'_> {
-        fn dummy(width: u16, height: u16) -> Map<'static> {
+    impl Map {
+        fn dummy(width: u16, height: u16) -> Map {
             let map_file = tempfile().unwrap();
             let staidx_file= tempfile().unwrap();
             let statics_file = tempfile().unwrap();
-            Map { map_config: MapConfig{ map_index: 0, width, height, directory: "dummy"},
+            Map { map_config: MapConfig{ map_index: 0, width, height, directory: String::from("dummy")},
                 map_file,
                 staidx_file,
                 statics_file,

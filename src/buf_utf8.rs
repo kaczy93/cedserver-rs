@@ -1,10 +1,10 @@
-use bytes::{Buf};
+use bytes::Buf;
 
-pub trait BytesUtf8{
+pub trait BufUtf8 {
     fn get_str_nul(&mut self) -> &str;
 }
 
-impl BytesUtf8 for &[u8] {
+impl BufUtf8 for &[u8] {
     fn get_str_nul(&mut self) -> &str{
         let nul_idx = self.iter().position(|&c| c == 0).expect("Missing string terminator");
         let result = std::str::from_utf8(&self[..nul_idx]).expect("Invalid UTF-8 string");
@@ -15,7 +15,7 @@ impl BytesUtf8 for &[u8] {
 
 #[cfg(test)]
 mod tests {
-    use crate::bytes_utf8::BytesUtf8;
+    use crate::buf_utf8::BufUtf8;
 
     #[test]
     fn test_get_str_nul(){

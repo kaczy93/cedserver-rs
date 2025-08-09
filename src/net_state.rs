@@ -1,14 +1,17 @@
+use crate::enums::AccessLevel;
+use crate::map::Map;
 use bytes::Buf;
 use input_buffer::InputBuffer;
-use std::cell::Cell;
+use std::cell::{Cell, Ref, RefCell, RefMut};
 use std::error::Error;
 use std::fmt::{Display, Formatter};
 use std::io::Write;
 use std::net::{SocketAddr, TcpStream};
+use std::rc::Rc;
 
-type PacketHandler = fn(&NetState, &[u8]) -> Result<(), Box<dyn Error>>;
 
 pub(crate) struct NetState{
+    map: Rc<RefCell<Map>>,
     stream: TcpStream,
     addr: SocketAddr,
     recv_buffer: InputBuffer,
@@ -16,10 +19,9 @@ pub(crate) struct NetState{
     flush_pending: Cell<bool>
 }
 
-impl NetState {
-
-    pub(crate) fn new(stream: TcpStream, addr: SocketAddr) -> Self{
-        NetState {stream, addr, recv_buffer:InputBuffer::new(), running: Cell::new(true), flush_pending: Cell::new(false)}
+impl NetState{
+    pub(crate) fn new(stream: TcpStream, addr: SocketAddr, map: Rc<RefCell<Map>>) -> Self{
+        NetState {map, stream, addr, recv_buffer:InputBuffer::new(), running: Cell::new(true), flush_pending: Cell::new(false)}
     }
 
     pub(crate) fn receive(&mut self) -> bool {
@@ -33,6 +35,10 @@ impl NetState {
             }
         }
         //Is this a good return value here?
+        self.running.get()
+    }
+
+    pub fn is_running(&self) -> bool {
         self.running.get()
     }
 
@@ -66,9 +72,10 @@ impl NetState {
         Ok(())
     }
 
-    fn get_packet_handler(&self, packet_id: u8) -> Result<(usize, PacketHandler), NetStateError> {
+    fn get_packet_handler(&self, packet_id: u8) -> Result<(usize, fn(&Self, &[u8]) -> Result<(), Box<dyn Error>>), NetStateError> {
         match packet_id{
             0x02 => Ok((0, NetState::on_connection_packet)),
+            0x04 => Ok((0, NetState::on_blocks_request_packet)),
             _ => Err(NetStateError(format!("Unknown packet {packet_id}")))
         }
     }
@@ -85,14 +92,28 @@ impl NetState {
     }
 
     pub(crate) fn flush(&self) -> Result<(), std::io::Error>{
-        if(self.flush_pending.get()){}
-        let mut stream = &self.stream;
-        stream.flush()?;
+        if self.flush_pending.get() {
+            let mut stream = &self.stream;
+            stream.flush()?;
+        }
         Ok(())
     }
 
-    fn disconnect(&self, reason: impl Display) {
-        println!("{}: Disconnecting. Cause: {}", &self.addr, reason);
+    pub(crate) fn assert_access(&self, _access_level: AccessLevel) -> Result<(), NetStateError> {
+        //TODO: Check current netstate access level
+        Ok(())
+    }
+    
+    pub(crate) fn map_ref(&self) -> Ref<Map> {
+        self.map.borrow()
+    }
+    
+    pub(crate) fn map_ref_mut(&self) -> RefMut<Map> {
+        self.map.borrow_mut()
+    }
+
+    pub fn disconnect(&self, reason: impl Display) {
+        println!("{}: Disconnected. Cause: {}", &self.addr, reason);
         self.running.set(false);
     }
 }

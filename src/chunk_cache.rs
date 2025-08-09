@@ -1,6 +1,7 @@
-use std::collections::{HashMap, VecDeque};
-use crate::chunks::{LandChunk, StaticsChunk};
+use crate::land_chunk::LandChunk;
 use crate::map::Map;
+use crate::statics_chunk::StaticsChunk;
+use std::collections::{HashMap, VecDeque};
 
 pub struct ChunkCache {
     capacity: u32,
@@ -54,7 +55,7 @@ mod tests {
         let mut cache = ChunkCache::new(1);
         assert_eq!(false, cache.contains(0,0));
 
-        let land = LandChunk::new(0,0);
+        let land = LandChunk::new(0,0, 0);
         let statics = StaticsChunk::new(0,0);
         cache.add((land, statics));
 
