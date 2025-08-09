@@ -104,11 +104,11 @@ impl NetState{
         Ok(())
     }
     
-    pub(crate) fn map_ref(&self) -> Ref<Map> {
+    pub(crate) fn _map_ref(&self) -> Ref<'_, Map> {
         self.map.borrow()
     }
     
-    pub(crate) fn map_ref_mut(&self) -> RefMut<Map> {
+    pub(crate) fn map_ref_mut(&self) -> RefMut<'_, Map> {
         self.map.borrow_mut()
     }
 

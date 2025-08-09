@@ -1,17 +1,17 @@
 pub enum AccessLevel{
-    None,
+    _None,
     View,
     Normal,
-    Developer,
-    Administrator = 255
+    _Developer,
+    _Administrator = 255
 }
 
 pub enum LoginState{
     Ok,
-    InvalidUser,
-    InvalidPassword,
-    AlreadyLoggedIn,
-    NoAccess
+    _InvalidUser,
+    _InvalidPassword,
+    _AlreadyLoggedIn,
+    _NoAccess
 }
 
 #[cfg(test)]
@@ -21,6 +21,6 @@ mod tests{
     #[test]
     pub fn enum_cast(){
         assert_eq!(0, LoginState::Ok as u8);
-        assert_eq!(1, LoginState::InvalidUser as u8);
+        assert_eq!(1, LoginState::_InvalidUser as u8);
     }
 }

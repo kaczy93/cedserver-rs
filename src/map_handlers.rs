@@ -12,7 +12,7 @@ impl NetState{
         self.assert_access(AccessLevel::View)?;
         let blocks_count = data.len() / 4;
         for _i in 0..blocks_count {
-            self.send_block_packet(data.get_point_u16());
+            self.send_block_packet(data.get_point_u16())?;
         }
         //TODO: Zlib compress
         //TODO: Chunk subscriptions

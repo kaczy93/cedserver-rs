@@ -26,7 +26,7 @@ impl StaticTile {
 
 pub trait BufStaticTile{
     fn get_static_tile_mul(&mut self) -> StaticTile;
-    fn get_static_tile_net(&mut self) -> StaticTile;
+    fn _get_static_tile_net(&mut self) -> StaticTile;
 }
 
 impl BufStaticTile for &[u8]{
@@ -40,7 +40,7 @@ impl BufStaticTile for &[u8]{
         StaticTile {id, x: local_x as u16, y: local_y as u16, z, hue}
     }
 
-    fn get_static_tile_net(&mut self) -> StaticTile {
+    fn _get_static_tile_net(&mut self) -> StaticTile {
         let id = self.get_u16_le();
         let x = self.get_u16_le();
         let y = self.get_u16_le();
@@ -52,7 +52,7 @@ impl BufStaticTile for &[u8]{
 
 pub trait BufMutStaticTile{
     fn put_static_tile_mul(&mut self, static_tile: &StaticTile);
-    fn put_static_tile_net(&mut self, static_tile: &StaticTile);
+    fn _put_static_tile_net(&mut self, static_tile: &StaticTile);
 }
 
 impl BufMutStaticTile for &mut [u8]{
@@ -64,7 +64,7 @@ impl BufMutStaticTile for &mut [u8]{
         self.put_u16_le(static_tile.hue);
     }
 
-    fn put_static_tile_net(&mut self, static_tile: &StaticTile) {
+    fn _put_static_tile_net(&mut self, static_tile: &StaticTile) {
         self.put_u16_le(static_tile.id);
         self.put_u16_le(static_tile.x);
         self.put_u16_le(static_tile.y);
