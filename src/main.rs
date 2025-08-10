@@ -9,5 +9,5 @@ fn main() {
         r"C:\Nel\Ultima Online Classic_7_0_95_0_modified");
     let map = Map::build(map_config);
     println!("Map initialized!");
-    CedServer::run(map);
+    CedServer::new(map).run();
 }

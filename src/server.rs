@@ -1,29 +1,30 @@
 use crate::map::Map;
 use crate::net_state::NetState;
-use std::cell::RefCell;
 use std::net::TcpListener;
-use std::rc::Rc;
 
-pub struct CedServer {}
+pub struct CedServer {
+    pub map: Map
+}
 
 impl CedServer {
-    pub fn run(map: Map) -> () {
-        //Should we pass map mut ref to every receive call to get rid of rc<refcell<>>?
-        let map = Rc::new(RefCell::new(map));
+    pub fn new(map: Map) -> Self{
+        CedServer{map}
+    }
+    pub fn run(&mut self) -> () {
         let listener = TcpListener::bind("0.0.0.0:2597").expect("Unable to bind to address");
         println!("Awaiting client connection...");
         //TODO: Support more than one client
         let (stream, addr) = listener.accept().expect("Unable to accept connection");
         println!("Client connected!");
 
-        let mut netstate = NetState::new(stream, addr, map.clone());
+        let mut netstate = NetState::new(stream, addr);
         while netstate.is_running() {
-            netstate.receive();
+            netstate.receive(self);
             netstate.flush().expect("Unable to flush socket"); //TODO: Better error handling
             std::thread::sleep(std::time::Duration::from_millis(1));
         }
         //Final receive and flush
-        netstate.receive();
+        netstate.receive(self);
         netstate.flush().unwrap();
     }
 }

@@ -1,17 +1,14 @@
 use crate::enums::AccessLevel;
-use crate::map::Map;
+use crate::server::CedServer;
 use bytes::Buf;
 use input_buffer::InputBuffer;
-use std::cell::{Cell, Ref, RefCell, RefMut};
+use std::cell::Cell;
 use std::error::Error;
 use std::fmt::{Display, Formatter};
 use std::io::Write;
 use std::net::{SocketAddr, TcpStream};
-use std::rc::Rc;
-
 
 pub(crate) struct NetState{
-    map: Rc<RefCell<Map>>,
     stream: TcpStream,
     addr: SocketAddr,
     recv_buffer: InputBuffer,
@@ -20,17 +17,17 @@ pub(crate) struct NetState{
 }
 
 impl NetState{
-    pub(crate) fn new(stream: TcpStream, addr: SocketAddr, map: Rc<RefCell<Map>>) -> Self{
-        NetState {map, stream, addr, recv_buffer:InputBuffer::new(), running: Cell::new(true), flush_pending: Cell::new(false)}
+    pub(crate) fn new(stream: TcpStream, addr: SocketAddr) -> Self{
+        NetState {stream, addr, recv_buffer:InputBuffer::new(), running: Cell::new(true), flush_pending: Cell::new(false)}
     }
 
-    pub(crate) fn receive(&mut self) -> bool {
+    pub(crate) fn receive(&mut self, cedserver: &mut CedServer) -> bool {
         let bytes_read = self.recv_buffer.read_from(&mut self.stream).unwrap_or_else(|err|{
             self.disconnect(err);
             0
         });
         if bytes_read > 0 {
-            if let Err(err) = self.process_buffer() {
+            if let Err(err) = self.process_buffer(cedserver) {
                 self.disconnect(err)
             }
         }
@@ -42,7 +39,7 @@ impl NetState{
         self.running.get()
     }
 
-    fn process_buffer(&mut self) -> Result<(), Box<dyn Error>>{
+    fn process_buffer(&mut self, cedserver: &mut CedServer) -> Result<(), Box<dyn Error>>{
         loop {
             let mut data = self.recv_buffer.chunk(); //TODO: Can we use cursor so we don't have to track pos ourself?
             let packet_id = match data.try_get_u8() {
@@ -50,33 +47,41 @@ impl NetState{
                 _ => break //No data
             };
 
-            let (packet_length, packet_handler) = self.get_packet_handler(packet_id)?;
+            let mut packet_length = self.get_packet_length(packet_id)?;
+            let mut data_pos = 1;
 
-            let (data_pos ,packet_length): (usize, usize) = if packet_length != 0 {
-                (1, packet_length)
-            } else {
-                match data.try_get_u32_le() {
-                    Ok(x) => (5, x as usize),
-                    _ => break // Need more data
+            if packet_length == 0 {
+                if data.remaining() < 4 {
+                    break; // Need more data
                 }
-            };
+                packet_length = data.get_u32_le() as usize;
+                data_pos = 5;
+            }
 
             let data_length = packet_length - data_pos;
             if data.remaining() < data_length {
                 break; // Need more data
             }
 
-            packet_handler(self, &data.chunk()[..data_length])?;
+            self.handle_packet(cedserver, packet_id, &data.chunk()[..data_length])?;
             self.recv_buffer.advance(packet_length);
         }
         Ok(())
     }
 
-    fn get_packet_handler(&self, packet_id: u8) -> Result<(usize, fn(&Self, &[u8]) -> Result<(), Box<dyn Error>>), NetStateError> {
+    fn get_packet_length(&self, packet_id: u8) -> Result<usize, Box<dyn Error>>{
         match packet_id{
-            0x02 => Ok((0, NetState::on_connection_packet)),
-            0x04 => Ok((0, NetState::on_blocks_request_packet)),
-            _ => Err(NetStateError(format!("Unknown packet {packet_id}")))
+            0x02 => Ok(0),
+            0x04 => Ok(0),
+            _ => Err(NetStateError("Unknown packet".to_string()).into())
+        }
+    }
+
+    fn handle_packet(&self, cedserver: &mut CedServer, packet_id: u8, data: &[u8]) -> Result<(), Box<dyn Error>> {
+        match packet_id{
+            0x02 => self.on_connection_packet(cedserver, data),
+            0x04 => self.on_blocks_request_packet(cedserver, data),
+            _ => Err(NetStateError("Unknown packet".to_string()).into())
         }
     }
 
@@ -104,14 +109,6 @@ impl NetState{
         Ok(())
     }
     
-    pub(crate) fn _map_ref(&self) -> Ref<'_, Map> {
-        self.map.borrow()
-    }
-    
-    pub(crate) fn map_ref_mut(&self) -> RefMut<'_, Map> {
-        self.map.borrow_mut()
-    }
-
     pub fn disconnect(&self, reason: impl Display) {
         println!("{}: Disconnected. Cause: {}", &self.addr, reason);
         self.running.set(false);
